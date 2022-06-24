@@ -1,0 +1,46 @@
+## TRAIN ##
+
+atlanta
+austin
+baltimore
+columbus
+dallas
+dc
+houston
+indianapolis
+london
+louisville
+miami
+milwaukee
+minneapolis
+nashville
+orlando
+philadelphia
+phoenix
+portland
+san antonio
+san jose
+seattle
+sf
+st louis
+tampa
+vegas
+
+
+## TEST ##
+
+amsterdam
+boston
+chicago
+denver
+kansas city
+la
+montreal
+new york
+paris
+pittsburgh
+saltlakecity
+san diego
+tokyo
+toronto
+vancouver

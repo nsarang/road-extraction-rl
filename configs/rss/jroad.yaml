@@ -1,0 +1,34 @@
+version: 0.0.1
+
+experiment:
+  name: 70-oi-ddrnet39-opt
+  engine: J_Road
+  dir: experiments
+  seed: 42
+
+model:
+  data_dir: data/segmentation
+  backbone: DDRNet39
+  crop_size: [448, 448]
+  num_classes: 2
+  learning_rate: 25e-4
+  batch_size: 8
+  num_workers: 0
+  junc_weight: 10
+  skel_weight: 10
+  aux_weight: 0.1
+  autoclip: true
+  log_interval: 25
+  log_val_interval: 10
+  focus_loss_w_min: 0.175
+  eval_crop: [164, 164]
+  epochs: ${trainer.max_epochs}
+
+trainer:
+  max_epochs: 70
+  num_sanity_val_steps: 20
+  sync_batchnorm: True
+  flush_logs_every_n_steps: 10
+  progress_bar_refresh_rate: 1
+  # val_check_interval: 0.5
+  # fast_dev_run: 20

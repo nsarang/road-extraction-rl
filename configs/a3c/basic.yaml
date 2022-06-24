@@ -1,0 +1,71 @@
+core:
+  experiment_name: a3c
+  experiment_dir: experiments/${core.experiment_name}
+
+data:
+  city: toronto
+  data_dir: data
+
+env:
+  action_scheme:
+    name: MaskDiscrete
+    args:
+      step_size: 10
+      brush_width: 5
+  reward_scheme:
+    name: MaskReward
+    args:
+      revisit_weight: 0.5
+      error_weight: 2
+  stopper:
+    name: MaxPenaltyLatest
+    args:
+      max_negative: -4
+      window: 3
+  base:
+    train:
+      renderer: null
+      use_logger: False
+      observation_shape:
+        - 256
+        - 256
+      starting_location: null
+      observation_mode: stacked
+      experiment_dir: ${core.experiment_dir}
+    test:
+      auto_render: step
+      starting_location: null
+      observation_mode: ${env.base.train.observation_mode}
+      observation_shape: ${env.base.train.observation_shape}
+      experiment_dir: ${env.base.train.experiment_dir}
+  wrappers:
+    train:
+      max_steps: 30
+      max_episodes: 1
+      preprocess_obs: true
+    test:
+      max_steps: 30
+      max_episodes: 1
+      preprocess_obs: true
+    
+
+trainer:
+  lr: 0.0001
+  gamma: 0.99
+  tau: 1.00
+  seed: 1
+  workers: 4
+  gpu_ids:
+    - 0
+  shared-optimizer: True,
+  load: false
+  save_max: true
+  optimizer: Adam
+  load_model_dir: ${core.experiment_dir}/checkpoints
+  save_model_dir: ${core.experiment_dir}/checkpoints
+  log_dir: ${core.experiment_dir}/logs
+  amsgrad: true
+  num_steps: 10
+  env: "RoadMaster"
+  # max_episode_length: 10000
+  # skip_rate: 4

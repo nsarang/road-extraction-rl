@@ -1,0 +1,94 @@
+core:
+  experiment_name: 4-dqn-secnn
+  experiment_dir: experiments/${core.experiment_name}
+
+data:
+  city: toronto
+  data_dir: data
+
+env:
+  action_scheme:
+    name: MaskDiscrete
+    args:
+      step_size: 8
+      brush_width: 3
+  reward_scheme:
+    name: MaskReward
+    args:
+      revisit_weight: 0.5
+      error_weight: 2
+  stopper:
+    name: MaxPenaltyLatest
+    args:
+      max_negative: -6
+      window: 4
+  base:
+    train:
+      renderer: null
+      use_logger: false
+      observation_shape:
+        - 256
+        - 256
+      starting_location: null
+      observation_mode: stacked
+      experiment_dir: ${core.experiment_dir}
+    test:
+      auto_render: step
+      starting_location: null
+      use_logger: false
+      observation_mode: ${env.base.train.observation_mode}
+      observation_shape: ${env.base.train.observation_shape}
+      experiment_dir: ${env.base.train.experiment_dir}
+  wrappers:
+    train:
+      max_steps: 30
+      max_episodes: 1
+      preprocess_obs: true
+    test:
+      max_steps: 30
+      max_episodes: 1
+      preprocess_obs: true
+
+collector:
+  num_train_envs: 8
+  num_test_envs: 2
+  train_seed: 11
+  test_seed: 111
+  buffer_type: PERB
+  buffer_size: 4096
+  alpha: 0.9
+  beta: 0.5
+
+policy:
+  device: dp
+  backbone:
+    name: core.policy.networks.SECNN_1INP
+    args:
+      feature_vector_size: 256
+      obs_channels: 4
+  optimizer:
+    lr: 1e-3
+    weight_decay: 1e-3
+  dqn:
+    discount_factor: 0.75
+    estimation_step: 4
+    target_update_freq: 10
+    reward_normalization: false
+
+trainer:
+  args:
+    max_epoch: 30000
+    step_per_epoch: 400
+    update_per_step: 4
+    batch_size: 64
+    collect_per_step: ${collector.num_train_envs} # n_episodes used by the collector
+    episode_per_test: 4
+  train:
+    eps: 0.3
+    sched:
+      - 10000
+      - 50000
+  test:
+    eps: 0.05
+  experiment_dir: ${core.experiment_dir}
+  reward_threshold: 100

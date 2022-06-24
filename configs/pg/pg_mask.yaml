@@ -1,0 +1,86 @@
+core:
+  experiment_name: 9-pg-mask
+  experiment_dir: experiments/${core.experiment_name}
+
+data:
+  city: miami
+  data_dir: data
+
+env:
+  action_scheme:
+    name: MaskDiscrete
+    args:
+      step_size: 5
+      brush_width: 3
+  reward_scheme:
+    name: MaskReward
+    args:
+      revisit_weight: 0.5
+      error_weight: 2
+  stopper:
+    name: MaxPenaltyLatest
+    args:
+      max_negative: -4
+      window: 3
+  base:
+    train:
+      renderer: null
+      use_logger: False
+      observation_shape:
+        - 512
+        - 512
+      starting_location: null
+      observation_mode: seperated
+      experiment_dir: ${core.experiment_dir}
+    test:
+      auto_render: step
+      starting_location: null
+      observation_mode: ${env.base.train.observation_mode}
+      observation_shape: ${env.base.train.observation_shape}
+      experiment_dir: ${env.base.train.experiment_dir}
+  wrappers:
+    train:
+      max_steps: 30
+      max_episodes: 1
+      preprocess_obs: true
+    test:
+      max_steps: 30
+      max_episodes: 1
+      preprocess_obs: true
+    
+
+collector:
+  num_train_envs: 4
+  num_test_envs: 2
+  train_seed: 11
+  test_seed: 111
+  buffer_type: ERB
+  buffer_size: 512
+  alpha: 0.8
+  beta: 0.7
+  test_noise: 0
+
+policy:
+  device: dp
+  backbone:
+    name: core.policy.networks.ResNestSeg
+    args:
+      feature_vector_size: 256
+      pretrained: checkpoints/LitRoadS-V1-epoch=epoch=04--val_loss=val_loss=0.4905.ckpt
+  optimizer:
+    lr: 1e-4
+    weight_decay: 1e-3
+  pg:
+    discount_factor: 0.1
+    reward_normalization: false
+
+trainer:
+  args:
+    max_epoch: 300
+    step_per_epoch: 100
+    collect_per_step: 2 # n_episodes used by the collector
+    repeat_per_collect: 4
+    batch_size: 8
+    episode_per_test: 4
+  experiment_dir: ${core.experiment_dir}
+  reward_threshold: 100

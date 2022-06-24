@@ -1,0 +1,189 @@
+version: 2.1.0
+
+experiment:
+  name: 40-action-seq
+  engine: DQN_SEQ
+  root_dir: experiments
+  dir: null # AUTOMATICALLY SET
+
+env:
+  train:
+    data:
+      cities:
+        - toronto
+        - paris
+        - la
+        - chicago
+        - houston
+      dir: data
+
+    action_scheme:
+      name: GraphDiscreteRetrace
+      args:
+        step_size: 10
+        num_directions: 32
+
+    reward_scheme:
+      name: DistReward
+      args:
+        neutral_distance: 5
+        revisit_distance: 20
+        max_distance: 40
+        exponent: 1
+        normalize: false
+        nearest_unvisited_len_thresh: 40
+        min_viable_path_len: 10
+        apply_road_width: false
+
+    stopper:
+      name: WindowAverage
+      args:
+        min_average: -10
+        window_length: 8
+        gameover_multiplier: 1.5
+
+    renderer: # list supported
+      VideoRenderer9000:
+        frame_size:
+          - 1000
+          - 1000
+        gamma: ${policy.dqn.discount_factor}
+        fps: 4
+        max_frames: 150
+      TopViewRenderer:
+        scale: 0.25
+        fps: 30
+        skip_rate: 0.75
+        min_steps_activate: 40
+        max_frames: 100
+
+    base:
+      episode_window_size:
+        - 640
+        - 640
+      observation_shape:
+        - 384
+        - 384
+      starting_location: null
+      observation_mode: rgb+movement+actions
+      experiment_dir: ${experiment.dir}
+      actions_obs_len: 15
+
+    wrappers:
+      UndoW:
+        num_undo: 15
+        hard_reset_rate: 0.15
+      EpisodicEnvW:
+        max_steps: 300
+        max_episodes: 30
+      AutoSaveW:
+        mode: episode
+        period: 75
+      ObservationAugmentationW:
+        mode: train
+        output_shape:
+          - 192
+          - 192
+      InputRepresentationW:
+        mode: stacked
+
+  test:
+    data:
+      cities:
+        - kansas city
+        - montreal
+      dir: ${env.train.data.dir}
+
+    action_scheme: ${env.train.action_scheme}
+    reward_scheme: ${env.train.reward_scheme}
+
+    stopper:
+      name: WindowAverage
+      args:
+        min_average: -12.5
+        window_length: 15
+        gameover_multiplier: ${env.train.stopper.args.gameover_multiplier}
+
+    renderer: ${env.train.renderer}
+
+    base:
+      starting_location: null
+      observation_shape: ${env.train.base.observation_shape}
+      observation_mode: ${env.train.base.observation_mode}
+      experiment_dir: ${experiment.dir}
+      actions_obs_len: ${env.train.base.actions_obs_len}
+    wrappers:
+      EpisodicEnvW:
+        max_steps: 5000
+        max_episodes: 10
+      AutoSaveW:
+        mode: episode
+        period: 3
+        start: 9
+      ObservationAugmentationW:
+        mode: test
+        output_shape: ${env.train.wrappers.ObservationAugmentationW.output_shape}
+      InputRepresentationW: ${env.train.wrappers.InputRepresentationW}
+
+collector:
+  num_train_envs: 5
+  num_test_envs: 2
+  train_seed: 11
+  test_seed: 111
+  buffer_type: PERB
+  buffer_size: 12000
+  alpha: 0.6
+  beta: 0.4
+
+policy:
+  device: dp
+  arch:
+    actions_output_dim: 16
+    actions_seq_len: ${env.train.base.actions_obs_len}
+    hidden_sizes:
+      - 64
+      - 64
+      - 64
+    backbone:
+      name: core.policy.networks.TIMM_ZOO
+      args:
+        name: tf_efficientnetv2_b0
+        feature_vector_size: 256
+        obs_channels: 4
+        pretrained: true
+  optimizer:
+    lr: 5e-4
+    weight_decay: 1e-4    
+  dqn:
+    discount_factor: 0.75
+    estimation_step: 3
+    target_update_freq: 25
+    reward_normalization: false
+  checkpoint:
+    filepath: null
+    load_optimizer: false
+
+trainer:
+  args:
+    max_epoch: 500
+    step_per_epoch: 5000
+    update_per_step: 0.25
+    batch_size: 128
+    step_per_collect: 100
+    episode_per_test: 12
+  train:
+    eps: 0.4
+    sched:
+      - 10
+      - 200
+  test:
+    eps: 0.01
+  checkpointer:
+    monitor: rew_avg
+    filename: policy_{epoch}_{rew_avg:.2f}
+    save_last: true
+    save_top_k: 3
+    mode: max
+    verbose: true
+  experiment_dir: ${experiment.dir}
+  reward_threshold: 1000

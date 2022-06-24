@@ -1,0 +1,88 @@
+core:
+  experiment_name: 6-act
+  experiment_dir: experiments/${core.experiment_name}
+
+data:
+  city: miami
+  data_dir: data
+
+env:
+  action_scheme:
+    name: GraphContinuous
+    args:
+      step_size: 10
+  reward_scheme:
+    name: AngleReward
+    args:
+      max_abs_reward: 5
+      revisit_ratio: 2
+      divergence_penalty: false
+  base:
+    train:
+      renderer: null
+      use_logger: False
+      observation_shape:
+        - 512
+        - 512
+      starting_location: null
+      observation_mode: seperated
+      experiment_dir: ${core.experiment_dir}
+    test:
+      auto_render: step
+      starting_location: null
+      observation_mode: ${env.base.train.observation_mode}
+      observation_shape: ${env.base.train.observation_shape}
+      experiment_dir: ${env.base.train.experiment_dir}
+  wrappers:
+    train:
+      max_steps: 20
+      max_episodes: 1
+      preprocess_obs: true
+    test:
+      max_steps: 30
+      max_episodes: 1
+      preprocess_obs: true
+
+collector:
+  num_train_envs: 8
+  num_test_envs: 4
+  train_seed: 11
+  test_seed: 111
+  buffer_type: PERB
+  buffer_size: 512
+  alpha: 0.8
+  beta: 0.7
+  test_noise: 0
+
+policy:
+  device: dp
+  backbone:
+    name: core.policy.networks.ResNestSeg
+    args:
+      feature_vector_size: 256
+      pretrained: checkpoints/LitRoadS-V1-epoch=epoch=04--val_loss=val_loss=0.4905.ckpt
+  optimizer:
+    lr: 1e-4
+    weight_decay: 1e-5
+  ppo:
+    discount_factor: 0.25
+    vf_coef: 0.4
+    ent_coef: 0.005
+    eps_clip: 0.2
+    max_grad_norm: 3
+    gae_lambda: 0.95
+    reward_normalization: True
+    dual_clip: null
+    value_clip: False
+    max_batchsize: 64
+
+trainer:
+  args:
+    max_epoch: 300
+    step_per_epoch: 100
+    collect_per_step: 1 # n_episodes used by the collector
+    repeat_per_collect: 4
+    batch_size: 32
+    episode_per_test: 8
+  experiment_dir: ${core.experiment_dir}
+  reward_threshold: 100

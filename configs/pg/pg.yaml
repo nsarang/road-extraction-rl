@@ -1,0 +1,86 @@
+core:
+  experiment_name: 8-pg-disc-area
+  logdir: logs
+
+data:
+  city: miami
+  data_dir: data
+
+env:
+  action_scheme:
+    name: GraphDiscrete
+    args:
+      step_size: 10
+  reward_scheme:
+    name: AreaLengthReward
+    args:
+      max_abs_reward: 10
+      revisit_ratio: 2
+      area_weight: 0.1
+      length_weight: 0.5
+      # divergence_penalty: false
+  base:
+    train:
+      renderer: null
+      use_logger: False
+      observation_shape:
+        - 512
+        - 512
+      starting_location: null
+      observation_mode: seperated
+      log_dir: ${core.logdir}
+      experiment_name: ${core.experiment_name}
+    test:
+      auto_render: step
+      starting_location: null
+      observation_mode: ${env.base.train.observation_mode}
+      observation_shape: ${env.base.train.observation_shape}
+      log_dir: ${env.base.train.log_dir}
+      experiment_name: ${env.base.train.experiment_name}
+  wrappers:
+    train:
+      max_steps: 30
+      max_episodes: 1
+      preprocess_obs: true
+    test:
+      max_steps: 30
+      max_episodes: 1
+      preprocess_obs: true
+    
+
+collector:
+  num_train_envs: 4
+  num_test_envs: 2
+  train_seed: 11
+  test_seed: 111
+  buffer_type: ERB
+  buffer_size: 512
+  alpha: 0.8
+  beta: 0.7
+  test_noise: 0
+
+policy:
+  device: dp
+  backbone:
+    name: core.policy.networks.ResNestSeg
+    args:
+      feature_vector_size: 256
+      pretrained: checkpoints/LitRoadS-V1-epoch=epoch=04--val_loss=val_loss=0.4905.ckpt
+  optimizer:
+    lr: 1e-4
+    weight_decay: 1e-5
+  pg:
+    discount_factor: 0.1
+    reward_normalization: false
+
+trainer:
+  args:
+    max_epoch: 300
+    step_per_epoch: 100
+    collect_per_step: 2 # n_episodes used by the collector
+    repeat_per_collect: 4
+    batch_size: 8
+    episode_per_test: 4
+  logdir: ${core.logdir}
+  experiment: ${core.experiment_name}
+  reward_threshold: 100

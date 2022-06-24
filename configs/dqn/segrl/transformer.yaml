@@ -1,0 +1,231 @@
+version: 2.3.0
+
+experiment:
+  name: 96-8-act
+  engine: DQN_SEQ
+  root_dir: experiments
+  logger: configs/logger.yaml
+  dir: null # AUTOMATICALLY SET
+
+env:
+  train:
+    data:
+      cities:
+        - austin
+        - dallas
+        - sf
+        - vegas
+        - dc
+        - miami
+        - london
+      dir: data
+      imagery_dir: data/imagery
+      osm_dir: data/osm
+
+    action_scheme:
+      name: GraphDiscreteRetrace
+      args:
+        step_size: 10
+        num_directions: 8
+        divergence_tolerance: 2
+        line_width: 6
+
+
+    reward_scheme:
+      name: DistRewardV2
+      args:
+        movement_length: ${env.train.action_scheme.args.step_size}
+        traversed_weight: 0.5
+        revisit_penalty: 15
+        divergence_penalty: 50
+        max_distance: 60
+        exponent: 0.95
+        normalize: true
+        max_visited_len_search: 40
+        max_accepted_visited: 20
+        min_viable_path_len: 10
+        apply_road_width: false
+
+    stopper:
+      name: WindowAverage
+      args:
+        min_percent: 0.67
+        window_length: 15
+        gameover_multiplier: 1.5
+        oscillation_window: 15
+
+    # renderer: # list supported
+    #   VideoRenderer9000:
+    #     frame_size: [500, 500]
+    #     gamma: ${policy.dqn.discount_factor}
+    #     fps: 3
+    #     skip_rate: 0.33
+    #     max_frames: 50
+    #   TopViewRenderer:
+    #     scale: 0.25
+    #     fps: 30
+    #     skip_rate: 0.75
+    #     min_steps_activate: 40
+    #     max_frames: 100
+
+    base:
+      episode_window_size: 
+        # - [256, 256]
+        - [320, 320]
+        # - [448, 448]
+        # - [640, 640]
+        # - [768, 768]
+      observation_shape: [256, 256]
+      road_properties:
+        base_width: 2
+        lane_width: 3
+        apply_lane_width: false
+      starting_location: null
+      observation_mode: rgb+movement+actions
+      experiment_dir: ${experiment.dir}
+      actions_obs_len: 6
+
+    wrappers:
+      UndoW:
+        num_undo: 12
+        hard_reset_rate: 0.2
+        max_divergences: 1
+        min_reward_percent: 0.65
+      EpisodicEnvW:
+        max_steps: 3000
+        max_episodes: 100
+      AutoSaveW:
+        mode: episode
+        period: 100
+      ObservationAugmentationW:
+        mode: train
+        output_shape: [164, 164]
+      InputRepresentationW:
+        mode: stacked
+
+  test:
+    data:
+      cities:
+        - kansas city
+        - montreal
+        - la
+        - toronto
+      dir: ${env.train.data.dir}
+      imagery_dir: ${env.train.data.imagery_dir}
+      osm_dir: ${env.train.data.osm_dir}
+
+    action_scheme: ${env.train.action_scheme}
+    reward_scheme: ${env.train.reward_scheme}
+
+    stopper:
+      name: WindowAverage
+      args:
+        min_percent: 0.65
+        window_length: 15
+        gameover_multiplier: ${env.train.stopper.args.gameover_multiplier}
+        oscillation_window: ${env.train.stopper.args.oscillation_window}
+
+    # renderer: ${env.train.renderer}
+
+    base:
+      starting_location: null
+      episode_window_size: [448, 448]
+      # episode_window_size: ${env.train.base.episode_window_size}
+      observation_shape: ${env.train.base.observation_shape}
+      observation_mode: ${env.train.base.observation_mode}
+      road_properties: ${env.train.base.road_properties}
+      experiment_dir: ${experiment.dir}
+      actions_obs_len: ${env.train.base.actions_obs_len}
+    wrappers:
+      EpisodicEnvW:
+        max_steps: 5000
+        max_episodes: 100
+      AutoSaveW:
+        mode: episode
+        period: 3
+        start: 9
+      ObservationAugmentationW:
+        mode: test
+        output_shape: ${env.train.wrappers.ObservationAugmentationW.output_shape}
+      InputRepresentationW: ${env.train.wrappers.InputRepresentationW}
+
+collector:
+  num_train_envs: 10
+  num_test_envs: 4
+  train_seed: 11
+  test_seed: 111
+  buffer_type: PERB
+  buffer_size: 9000
+  alpha: 0.8
+  beta: 0.6
+
+policy:
+  device: dp
+  arch:
+    normalize_fusion: true
+    actions_output_dim: 16
+    actions_seq_len: ${env.train.base.actions_obs_len}
+    hidden_sizes: [128, 128, 128, 128]
+    backbone:
+      name: core.policy.networks.TIMM_ZOO
+      args:
+        name: tf_efficientnetv2_b0
+        feature_vector_size: 96
+        obs_channels: 5
+        pretrained: true
+  # seg:
+  #   name: core.policy.networks.MultiMaskDDRNet
+  #   args:
+  #     use_aux: true
+  #   checkpoint: checkpoints/JRoad--epoch=169--loss_total_val=0.0725.ckpt
+  #   center_crop: [128, 128]
+
+  optimizer:
+    name: torch.optim.AdamW
+    args:
+      lr: 2e-3
+      weight_decay: 1e-4
+      eps: 1e-8
+  ss_reg: true
+  retrace_prob: 0.2
+  horizont: true
+  dqn:
+    # discount_factor: 0.80
+    target_horizon: 0.8
+    horizons: [0, 0.5, 0.8]
+    weights: [2, 1, 7]
+    regularize_every: 2
+    num_directions: ${env.train.action_scheme.args.num_directions}
+    aug_probs: [0.6, 0.25, 0.15]
+    estimation_step: 1
+    target_update_freq: 75
+    reward_normalization: false
+  checkpoint:
+    # filepath: checkpoints/effnet-16act.ckpt
+    strict: true
+    load_optimizer: true
+
+trainer:
+  args:
+    max_epoch: 500
+    step_per_epoch: 10000
+    update_per_step: 0.15
+    batch_size: 128
+    step_per_collect: 100
+    episode_per_test: 12
+  train:
+    eps: 0.15
+    sched:
+      - 1
+      - 100
+  test:
+    eps: 0.0
+  checkpointer:
+    monitor: rew_avg
+    filename: policy_{epoch}_{rew_avg:.2f}
+    save_last: true
+    save_top_k: 3
+    mode: max
+    verbose: true
+  experiment_dir: ${experiment.dir}
+  reward_threshold: 1000

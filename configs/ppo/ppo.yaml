@@ -1,0 +1,82 @@
+core:
+  experiment_name: max_steps_5
+  logdir: logs
+
+data:
+  city: toronto
+  data_dir: data
+
+env:
+  base:
+    train:
+      step_size: 7
+      observation_shape:
+        - 128
+        - 128
+      starting_location: null
+      observation_mode: stacked
+      log_dir: ${core.logdir}
+      experiment_name: ${core.experiment_name}
+    test:
+      step_size: 7
+      observation_shape:
+        - 128
+        - 128
+      starting_location: null
+      observation_mode: stacked
+      auto_render: step
+      log_dir: ${core.logdir}
+      experiment_name: ${core.experiment_name}
+  factory:
+    train:
+      max_steps: 5
+      max_episodes: 1
+      preprocess_obs: true
+    test:
+      max_steps: 100
+      max_episodes: 1
+      preprocess_obs: true
+    
+
+collector:
+  num_train_envs: 16
+  num_test_envs: 2
+  train_seed: 11
+  test_seed: 111
+  buffer_type: ERB
+  buffer_size: 1024
+  alpha: 0.8
+  beta: 0.7
+  test_noise: 0
+
+policy:
+  backbone:
+    name: core.policy.networks.ResNet34
+    args:
+      feature_vector_size: 1000
+      pretrained: True
+  optimizer:
+    lr: 1e-4
+    weight_decay: 1e-5
+  ppo:
+    discount_factor: 0.9
+    vf_coef: 0.4
+    ent_coef: 0.001
+    eps_clip: 0.2
+    max_grad_norm: 3
+    gae_lambda: 0.95
+    reward_normalization: False
+    dual_clip: null
+    value_clip: False
+
+trainer:
+  args:
+    max_epoch: 100
+    step_per_epoch: 300
+    collect_per_step: 1
+    repeat_per_collect: 2
+    batch_size: 128
+    episode_per_test: 6
+  logdir: ${core.logdir}
+  experiment: ${core.experiment_name}
+  reward_threshold: 0

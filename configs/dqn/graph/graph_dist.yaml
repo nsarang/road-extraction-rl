@@ -1,0 +1,125 @@
+version: 2.0.0
+
+experiment:
+  name: 11-dqn-dist
+  root_dir: experiments
+  dir: null # AUTOMATICALLY BE CALCULATED
+
+data:
+  city: toronto
+  data_dir: data
+
+env:
+  train:
+    action_scheme:
+      name: GraphDiscrete
+      args:
+        step_size: 10
+        num_directions: 32
+    reward_scheme:
+      name: DistReward
+      args:
+        max_abs_reward: 5
+        revisit_ratio: 10
+        divergence_criteria: 1.5
+    stopper:
+      name: WindowAverage
+      args:
+        min_negative: -3
+        window: 5
+    renderer:
+        name: VisualVideoRenderer
+        args:
+          frame_size:
+            - 1000
+            - 1000
+          gamma: ${policy.dqn.discount_factor}
+          fps: 4
+    base:
+      observation_shape:
+        - 256
+        - 256
+      starting_location: null
+      observation_mode: stacked
+      experiment_dir: ${experiment.dir}
+    wrappers:
+      EpisodicEnvW:
+        max_steps: 200
+        max_episodes: 1
+      AutoRenderW:
+        mode: step
+      AutoSaveW:
+        mode: episode
+        period: 200
+      PreprocessObservationW: []
+
+  test:
+    action_scheme: ${env.train.action_scheme}
+    reward_scheme: ${env.train.reward_scheme}
+    stopper:
+      name: WindowAverage
+      args:
+        min_negative: -3
+        window: 5
+    renderer: ${env.train.renderer}
+    base:
+      starting_location: null
+      observation_shape: ${env.train.base.observation_shape}
+      observation_mode: ${env.train.base.observation_mode}
+      experiment_dir: ${experiment.dir}
+    wrappers:
+      EpisodicEnvW:
+        max_steps: 250
+        max_episodes: 1
+      AutoRenderW:
+        mode: step
+      AutoSaveW:
+        mode: episode
+      PreprocessObservationW: ${env.train.wrappers.PreprocessObservationW}
+
+collector:
+  num_train_envs: 2
+  num_test_envs: 1
+  train_seed: 11
+  test_seed: 111
+  buffer_type: PERB
+  buffer_size: 4096
+  alpha: 0.9
+  beta: 0.5
+
+policy:
+  device: dp
+  backbone:
+    name: core.policy.networks.EfficientNetEx
+    args:
+      name: efficientnet-b0
+      feature_vector_size: 1000
+      obs_channels: 4
+      pretrained: True
+  optimizer:
+    lr: 5e-4
+    weight_decay: 1e-4
+  dqn:
+    discount_factor: 0.5
+    estimation_step: 3
+    target_update_freq: 10
+    reward_normalization: false
+  checkpoint: null
+
+trainer:
+  args:
+    max_epoch: 500
+    step_per_epoch: 10000
+    update_per_step: 0.10
+    batch_size: 64
+    step_per_collect: 100
+    episode_per_test: 6
+  train:
+    eps: 0.3
+    sched:
+      - 100
+      - 400
+  test:
+    eps: 0.05
+  experiment_dir: ${experiment.dir}
+  reward_threshold: 1000

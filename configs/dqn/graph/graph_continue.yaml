@@ -1,0 +1,172 @@
+version: 2.1.0
+
+experiment:
+  name: 30-dqn-undow-focus
+  engine: DQN_V1
+  root_dir: experiments
+  dir: null # AUTOMATICALLY SET
+
+env:
+  train:
+    data:
+      cities:
+        - toronto
+        - paris
+        - la
+        - chicago
+        - houston
+      dir: data
+
+    action_scheme:
+      name: GraphDiscreteRetrace
+      args:
+        step_size: 10
+        num_directions: 32
+
+    reward_scheme:
+      name: DistReward
+      args:
+        neutral_distance: 5
+        revisit_distance: 20
+        max_distance: 35
+        exponent: 1
+        normalize: false
+        nearest_unvisited_len_thresh: 40 
+        min_viable_path_len: 20
+        apply_road_width: false
+
+    stopper:
+      name: WindowAverage
+      args:
+        min_average: -10
+        window_length: 8
+        gameover_multiplier: 1.5
+
+    renderer: # list supported
+      VideoRenderer9000:
+        frame_size:
+          - 1000
+          - 1000
+        gamma: ${policy.dqn.discount_factor}
+        fps: 4
+        max_frames: 200
+      TopViewRenderer:
+        scale: 0.25
+        fps: 30
+        skip_rate: 0.5
+        min_frames: 30
+
+    base:
+      observation_shape:
+        - 512
+        - 512
+      starting_location: null
+      observation_mode: rgb+movement
+      experiment_dir: ${experiment.dir}
+
+    wrappers:
+      UndoW:
+        num_undo: 20
+        hard_reset_rate: 0.01
+      EpisodicEnvW:
+        max_steps: 300
+        max_episodes: 50
+      AutoSaveW:
+        mode: episode
+        period: 150
+      ObservationAugmentationW:
+        mode: train
+        output_shape:
+          - 256
+          - 256
+      InputRepresentationW:
+        mode: stacked
+
+  test:
+    data:
+      cities:
+        - kansas city
+        - montreal
+      dir: ${env.train.data.dir}
+
+    action_scheme: ${env.train.action_scheme}
+    reward_scheme: ${env.train.reward_scheme}
+
+    stopper:
+      name: WindowAverage
+      args:
+        min_average: -10
+        window_length: 15
+        gameover_multiplier: ${env.train.stopper.args.gameover_multiplier}
+
+    renderer: ${env.train.renderer}
+
+    base:
+      starting_location: null
+      observation_shape: ${env.train.base.observation_shape}
+      observation_mode: ${env.train.base.observation_mode}
+      experiment_dir: ${experiment.dir}
+    wrappers:
+      EpisodicEnvW:
+        max_steps: 5000
+        max_episodes: 10
+      AutoSaveW:
+        mode: episode
+      ObservationAugmentationW:
+        mode: test
+        output_shape: ${env.train.wrappers.ObservationAugmentationW.output_shape}
+      InputRepresentationW: ${env.train.wrappers.InputRepresentationW}
+
+collector:
+  num_train_envs: 5
+  num_test_envs: 2
+  train_seed: 11
+  test_seed: 111
+  buffer_type: PERB
+  buffer_size: 8192
+  alpha: 0.8
+  beta: 0.5
+
+policy:
+  device: dp
+  backbone:
+    name: core.policy.networks.EfficientNetEx
+    args:
+      name: efficientnet-b0
+      feature_vector_size: 1000
+      obs_channels: 4
+      pretrained: true
+  optimizer:
+    lr: 5e-4
+    weight_decay: 1e-4    
+  dqn:
+    discount_factor: 0.5
+    estimation_step: 3
+    target_update_freq: 5
+    reward_normalization: false
+  checkpoint: experiments/28-stable-dqn-unnormal/version_0/checkpoints/policy_epoch=25_rew_avg=-1.58.ckpt
+
+trainer:
+  args:
+    max_epoch: 500
+    step_per_epoch: 10000
+    update_per_step: 0.10
+    batch_size: 128
+    step_per_collect: 100
+    episode_per_test: 6
+  train:
+    eps: 0.15
+    sched:
+      - 100
+      - 400
+  test:
+    eps: 0.01
+  checkpointer:
+    monitor: rew_avg
+    filename: policy_{epoch}_{rew_avg:.2f}
+    save_last: true
+    save_top_k: 3
+    mode: max
+    verbose: true
+  experiment_dir: ${experiment.dir}
+  reward_threshold: 1000
